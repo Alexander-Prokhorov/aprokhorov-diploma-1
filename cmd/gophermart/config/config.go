@@ -11,7 +11,7 @@ type Config struct {
 	Database       string `env:"DATABASE_URI"`
 	AccrualService string `env:"ACCRUAL_SYSTEM_ADDRESS"`
 	DBName         string `env:"DATABASE_NAME"`
-	LogLevel       int    `env:"GOPHERMART_LOGLEVEL"`
+	LogLevel       string `env:"GOPHERMART_LOGLEVEL"`
 }
 
 func (c *Config) EnvInit() error {
@@ -38,6 +38,6 @@ func NewServerConfig() *Config {
 		Server:         "",
 		Database:       "",
 		AccrualService: "",
-		LogLevel:       5,
+		LogLevel:       "",
 	}
 }
