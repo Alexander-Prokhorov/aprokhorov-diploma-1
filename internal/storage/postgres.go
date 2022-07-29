@@ -1,0 +1,292 @@
+package storage
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	_ "github.com/jackc/pgx/v4/stdlib"
+)
+
+type Postgres struct {
+	DB         *sql.DB
+	Mutex      *sync.RWMutex
+	Statements Statements
+}
+
+type Statements struct {
+	InsertUser        *sql.Stmt
+	SelectUsers       *sql.Stmt
+	InsertOrder       *sql.Stmt
+	UpdateOrder       *sql.Stmt
+	SelectOrders      *sql.Stmt
+	InsertBalance     *sql.Stmt
+	UpdateBalance     *sql.Stmt
+	SelectBalance     *sql.Stmt
+	InsertWithdraw    *sql.Stmt
+	SelectWithdrawals *sql.Stmt
+}
+
+func NewPostgresClient(ctx context.Context, address string, dbname string) (*Postgres, error) {
+	dbName := fmt.Sprintf("/%s", dbname)
+	db, err := sql.Open("pgx", address+dbName)
+
+	// Сравнить значение err с ошибкой sql Database NOT Exist
+	if err != nil {
+		return &Postgres{}, err
+	}
+
+	db.SetMaxIdleConns(10)
+	db.SetMaxOpenConns(10)
+	db.SetConnMaxIdleTime(10)
+
+	newPGS := Postgres{DB: db, Mutex: &sync.RWMutex{}, Statements: Statements{}}
+
+	err = newPGS.InitTables(ctx)
+	if err != nil {
+		return &Postgres{}, err
+	}
+
+	err = newPGS.PrepareStatements(ctx)
+	if err != nil {
+		return &Postgres{}, err
+	}
+
+	return &newPGS, nil
+}
+
+func (p *Postgres) GracefulShutdown() {
+	// Close Statements
+	p.Statements.InsertUser.Close()
+	p.Statements.SelectUsers.Close()
+	p.Statements.InsertOrder.Close()
+	p.Statements.UpdateOrder.Close()
+	p.Statements.SelectOrders.Close()
+	p.Statements.InsertBalance.Close()
+	p.Statements.UpdateBalance.Close()
+	p.Statements.SelectBalance.Close()
+	p.Statements.InsertWithdraw.Close()
+	p.Statements.SelectWithdrawals.Close()
+
+	// Close DB
+	p.DB.Close()
+}
+
+func (p *Postgres) InitTables(ctx context.Context) error {
+	scheme := []string{
+		`Users (
+			login text PRIMARY KEY,
+			pass_hash text NOT NULL,
+			last_login timestamp NOT NULL
+			)`,
+
+		`Balance (
+			login text PRIMARY KEY,
+			cur_score int NOT NULL,
+			total_wd int NOT NULL
+			)`,
+
+		`Orders (
+			order_id int PRIMARY KEY,
+			login text NOT NULL,
+			status text NOT NULL,
+			score int NOT NULL,
+			last_changed timestamp NOT NULL
+			)`,
+
+		`Withdrawals (
+			order_id int PRIMARY KEY,
+			login text NOT NULL,
+			wd int NOT NULL,
+			time timestamp NOT NULL
+			)`,
+	}
+
+	for _, table := range scheme {
+		query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s", table)
+		_, err := p.DB.ExecContext(ctx, query)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *Postgres) PrepareStatements(ctx context.Context) error {
+	stmt, err := p.DB.PrepareContext(ctx, "INSERT INTO Users (login, pass_hash, last_login) VALUES ($1, $2, $3)")
+	if err != nil {
+		return err
+	}
+	p.Statements.InsertUser = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT login, pass_hash, last_login FROM Users")
+	if err != nil {
+		return err
+	}
+	p.Statements.SelectUsers = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "INSERT INTO Orders (order_id, login, status, score, last_changed) VALUES ($1, $2, $3, $4, $5)")
+	if err != nil {
+		return err
+	}
+	p.Statements.InsertOrder = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "UPDATE Orders SET status = $3, score = $4, last_changed = $5 WHERE login = $2 AND order_id = $1")
+	if err != nil {
+		return err
+	}
+	p.Statements.UpdateOrder = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT order_id, login, status, score, last_changed FROM Orders WHERE login = $1")
+	if err != nil {
+		return err
+	}
+	p.Statements.SelectOrders = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "INSERT INTO Balance (login, cur_score, total_wd) VALUES ($1, $2, $3)")
+	if err != nil {
+		return err
+	}
+	p.Statements.InsertBalance = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "UPDATE Balance SET cur_score = $2, total_wd = $3 WHERE login = $1")
+	if err != nil {
+		return err
+	}
+	p.Statements.UpdateBalance = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT login, cur_score, total_wd FROM Balance WHERE login = $1")
+	if err != nil {
+		return err
+	}
+	p.Statements.SelectBalance = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "INSERT INTO Withdrawals (order_id, login, wd, time) VALUES ($1, $2, $3, $4)")
+	if err != nil {
+		return err
+	}
+	p.Statements.InsertWithdraw = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT order_id, login, wd, time FROM Withdrawals WHERE login = $1")
+	if err != nil {
+		return err
+	}
+	p.Statements.SelectWithdrawals = stmt
+
+	return nil
+}
+
+func (p *Postgres) RegisterUser(ctx context.Context, login string, hash string) error {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	_, err := p.Statements.InsertUser.ExecContext(ctx, login, hash, time.Now())
+	if err != nil {
+		return err
+	}
+	err = p.AddBalance(ctx, login, 0, 0)
+	return err
+}
+
+func (p *Postgres) GetUsers(ctx context.Context) ([]*User, error) {
+	p.Mutex.RLock()
+	defer p.Mutex.RUnlock()
+	return getBulk[*User](ctx, p.Statements.SelectUsers)
+}
+
+func (p *Postgres) AddOrder(ctx context.Context, login string, order string) error {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	_, err := p.Statements.InsertOrder.ExecContext(ctx, order, login, "NEW", 0, time.Now())
+	return err
+}
+
+func (p *Postgres) ModifyOrder(ctx context.Context, login string, order string, status string, score int) error {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	_, err := p.Statements.UpdateOrder.ExecContext(ctx, order, login, status, score, time.Now())
+	return err
+}
+
+func (p *Postgres) GetOrders(ctx context.Context, login string) ([]*Order, error) {
+	p.Mutex.RLock()
+	defer p.Mutex.RUnlock()
+	return getBulk[*Order](ctx, p.Statements.SelectOrders, login)
+}
+
+func (p *Postgres) AddBalance(ctx context.Context, login string, score int, wd int) error {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	_, err := p.Statements.InsertBalance.ExecContext(ctx, login, score, wd)
+	return err
+}
+
+func (p *Postgres) UpdateBalance(ctx context.Context, login string, score int, wd int) error {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	_, err := p.Statements.UpdateBalance.ExecContext(ctx, login, score, wd)
+	return err
+}
+
+func (p *Postgres) GetBalance(ctx context.Context, login string) (Balance, error) {
+	p.Mutex.RLock()
+	defer p.Mutex.RUnlock()
+	balances, err := getBulk[*Balance](ctx, p.Statements.SelectBalance, login)
+	if err != nil {
+		return Balance{}, err
+	}
+	if len(balances) != 1 {
+		return Balance{}, errors.New("PG: GetBalance unexpected error, get more than 1 result")
+	}
+	return *balances[0], nil
+}
+
+func (p *Postgres) AddWithdraw(ctx context.Context, login string, order string, wd int) error {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+	_, err := p.Statements.InsertWithdraw.ExecContext(ctx, order, login, wd, time.Now())
+	return err
+}
+
+func (p *Postgres) GetWithdrawals(ctx context.Context, login string) ([]*Withdraw, error) {
+	p.Mutex.RLock()
+	defer p.Mutex.RUnlock()
+	return getBulk[*Withdraw](ctx, p.Statements.SelectWithdrawals, login)
+}
+
+func getBulk[T Parser](ctx context.Context, stmt *sql.Stmt, args ...any) ([]T, error) {
+	result := make([]T, 0)
+	var rows *sql.Rows
+	var err error
+
+	rows, err = stmt.QueryContext(ctx, args...)
+	if err != nil {
+		return result, err
+	}
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return result, err
+	}
+	for rows.Next() {
+		var target T
+		target = target.New().(T)
+		params := make([]string, len(columns))
+		paramsPointers := make([]interface{}, len(columns))
+		for i := range params {
+			paramsPointers[i] = &params[i]
+		}
+		if err := rows.Scan(paramsPointers...); err != nil {
+			return result, err
+		}
+		err := target.Parse(params)
+		if err != nil {
+			return result, err
+		}
+		result = append(result, target)
+	}
+	return result, err
+}
