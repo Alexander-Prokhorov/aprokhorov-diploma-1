@@ -4,10 +4,20 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"aprokhorov-diploma-1/cmd/gophermart/config"
+	"aprokhorov-diploma-1/cmd/gophermart/handlers"
+	"aprokhorov-diploma-1/internal/cache"
+	"aprokhorov-diploma-1/internal/hasher"
 	"aprokhorov-diploma-1/internal/logger"
 	"aprokhorov-diploma-1/internal/storage"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func main() {
@@ -20,6 +30,8 @@ func main() {
 	flag.StringVar(&config.AccrualService, "r", "127.0.0.1:8082", "AccrualService ip:port")
 	flag.StringVar(&config.DBName, "dn", "", "Database Name")
 	flag.StringVar(&config.LogLevel, "l", "debug", "Log Level, default:debug")
+	flag.StringVar(&config.AuthCacheTimeout, "at", "300s", "Auth Cache Timeout, default:300s")
+	flag.StringVar(&config.AuthCacheHouseKeeperTime, "ah", "1h", "Auth Cache HouseKeeper Interval, default:1h")
 	flag.Parse()
 
 	//Init Logger
@@ -33,12 +45,78 @@ func main() {
 	log.Info("main", "Start GopherMart Today!")
 	log.Info("main", fmt.Sprint(config))
 
+	// Init system calls
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	// Init context
 	ctx := context.Background()
 
-	postgres, err := storage.NewPostgresClient(ctx, config.Database, config.DBName)
+	// Init Database
+	database, err := storage.NewPostgresClient(ctx, config.Database, config.DBName)
 	if err != nil {
 		log.Error("main", err.Error())
 	}
+	defer database.GracefulShutdown()
 
-	defer postgres.GracefulShutdown()
+	// Init Hasher
+	mainHasher := hasher.NewHMAC()
+
+	// Init AuthCache
+	authCacheTimeout, err := time.ParseDuration(config.AuthCacheTimeout)
+	if err != nil {
+		log.Panic("main", err.Error())
+	}
+	authCache := cache.NewMemCache(authCacheTimeout, log)
+
+	authCacheHousekeeper, err := time.ParseDuration(config.AuthCacheHouseKeeperTime)
+	if err != nil {
+		log.Panic("main", err.Error())
+	}
+	authHousekeeperTicker := time.NewTicker(authCacheHousekeeper)
+
+	go func() {
+		for {
+			<-authHousekeeperTicker.C
+			authCache.HouseKeeper()
+		}
+	}()
+
+	/*
+		POST /api/user/register — регистрация пользователя;
+		POST /api/user/login — аутентификация пользователя;
+		POST /api/user/orders — загрузка пользователем номера заказа для расчёта;
+		GET /api/user/orders — получение списка загруженных пользователем номеров заказов, статусов их обработки и информации о начислениях;
+		GET /api/user/balance — получение текущего баланса счёта баллов лояльности пользователя;
+		POST /api/user/balance/withdraw — запрос на списание баллов с накопительного счёта в счёт оплаты нового заказа;
+		GET /api/user/balance/withdrawals
+	*/
+	r := chi.NewRouter()
+	r.Route("/api/user", func(r chi.Router) {
+		r.Post("/register", handlers.Register(database, authCache, mainHasher, log))
+
+		r.Post("/login", handlers.Authorize)
+		r.Post("/orders", handlers.NewOrder)
+		r.Get("/orders", handlers.GetOrders)
+		r.Route("/balance", func(r chi.Router) {
+			r.Get("/", handlers.GetBalance)
+			r.Post("/withdraw", handlers.AddWithdraw)
+			r.Get("/withdrawals", handlers.GetWithdrawals)
+		})
+	})
+
+	// Init Server
+	server := &http.Server{
+		Addr:    config.Server,
+		Handler: r,
+	}
+
+	go func() {
+		log.Fatal("main", server.ListenAndServe().Error())
+	}()
+
+	log.Info("main", "Server Started")
+	<-done
+	log.Info("main", "Shutdown")
+
 }

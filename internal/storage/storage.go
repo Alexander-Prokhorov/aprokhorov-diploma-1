@@ -15,8 +15,10 @@ type Parser interface {
 }
 
 type User struct {
-	Login     string    `db:"login"`
+	Login     string    `db:"login" json:"login"`
+	Password  string    `db:"-" json:"password"`
 	PassHash  string    `db:"pass_hash"`
+	Key       string    `db:"key"`
 	LastLogin time.Time `db:"last_login"`
 }
 
@@ -47,6 +49,8 @@ func (u *User) Parse(values []string) error {
 		case 1:
 			u.PassHash = v
 		case 2:
+			u.Key = v
+		case 3:
 			time, err := time.Parse("2006-01-02T15:04:05.000000Z", v)
 			if err != nil {
 				return err
@@ -212,7 +216,7 @@ func (b *Balance) Parse(values []string) error {
 
 // Interface for use in Project
 type Storage interface {
-	RegisterUser(ctx context.Context, login string, hash string) error
+	RegisterUser(ctx context.Context, login string, hash string, key string) error
 	GetUsers(ctx context.Context) ([]*User, error)
 	AddOrder(ctx context.Context, login string, order string) error
 	ModifyOrder(ctx context.Context, login string, order string, status string, score int) error

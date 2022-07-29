@@ -13,7 +13,7 @@ import (
 
 type Postgres struct {
 	DB         *sql.DB
-	Mutex      *sync.RWMutex
+	mutex      *sync.RWMutex
 	Statements Statements
 }
 
@@ -30,36 +30,41 @@ type Statements struct {
 	SelectWithdrawals *sql.Stmt
 }
 
-func NewPostgresClient(ctx context.Context, address string, dbname string) (*Postgres, error) {
+func NewPostgresClient(ctx context.Context, address string, dbname string) (Postgres, error) {
 	dbName := fmt.Sprintf("/%s", dbname)
 	db, err := sql.Open("pgx", address+dbName)
 
 	// Сравнить значение err с ошибкой sql Database NOT Exist
 	if err != nil {
-		return &Postgres{}, err
+		return Postgres{}, err
 	}
 
 	db.SetMaxIdleConns(10)
 	db.SetMaxOpenConns(10)
 	db.SetConnMaxIdleTime(10)
 
-	newPGS := Postgres{DB: db, Mutex: &sync.RWMutex{}, Statements: Statements{}}
+	newPGS := Postgres{
+		DB:         db,
+		mutex:      &sync.RWMutex{},
+		Statements: Statements{},
+	}
 
 	err = newPGS.InitTables(ctx)
 	if err != nil {
-		return &Postgres{}, err
+		return Postgres{}, err
 	}
 
 	err = newPGS.PrepareStatements(ctx)
 	if err != nil {
-		return &Postgres{}, err
+		return Postgres{}, err
 	}
 
-	return &newPGS, nil
+	return newPGS, nil
 }
 
 func (p *Postgres) GracefulShutdown() {
 	// Close Statements
+
 	p.Statements.InsertUser.Close()
 	p.Statements.SelectUsers.Close()
 	p.Statements.InsertOrder.Close()
@@ -80,6 +85,7 @@ func (p *Postgres) InitTables(ctx context.Context) error {
 		`Users (
 			login text PRIMARY KEY,
 			pass_hash text NOT NULL,
+			key text NOT NULL,
 			last_login timestamp NOT NULL
 			)`,
 
@@ -117,13 +123,13 @@ func (p *Postgres) InitTables(ctx context.Context) error {
 }
 
 func (p *Postgres) PrepareStatements(ctx context.Context) error {
-	stmt, err := p.DB.PrepareContext(ctx, "INSERT INTO Users (login, pass_hash, last_login) VALUES ($1, $2, $3)")
+	stmt, err := p.DB.PrepareContext(ctx, "INSERT INTO Users (login, pass_hash, key, last_login) VALUES ($1, $2, $3, $4)")
 	if err != nil {
 		return err
 	}
 	p.Statements.InsertUser = stmt
 
-	stmt, err = p.DB.PrepareContext(ctx, "SELECT login, pass_hash, last_login FROM Users")
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT login, pass_hash, key, last_login FROM Users")
 	if err != nil {
 		return err
 	}
@@ -180,60 +186,56 @@ func (p *Postgres) PrepareStatements(ctx context.Context) error {
 	return nil
 }
 
-func (p *Postgres) RegisterUser(ctx context.Context, login string, hash string) error {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
-	_, err := p.Statements.InsertUser.ExecContext(ctx, login, hash, time.Now())
-	if err != nil {
-		return err
-	}
-	err = p.AddBalance(ctx, login, 0, 0)
+func (p Postgres) RegisterUser(ctx context.Context, login string, hash string, key string) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	_, err := p.Statements.InsertUser.ExecContext(ctx, login, hash, key, time.Now())
 	return err
 }
 
-func (p *Postgres) GetUsers(ctx context.Context) ([]*User, error) {
-	p.Mutex.RLock()
-	defer p.Mutex.RUnlock()
+func (p Postgres) GetUsers(ctx context.Context) ([]*User, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
 	return getBulk[*User](ctx, p.Statements.SelectUsers)
 }
 
-func (p *Postgres) AddOrder(ctx context.Context, login string, order string) error {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
+func (p Postgres) AddOrder(ctx context.Context, login string, order string) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	_, err := p.Statements.InsertOrder.ExecContext(ctx, order, login, "NEW", 0, time.Now())
 	return err
 }
 
-func (p *Postgres) ModifyOrder(ctx context.Context, login string, order string, status string, score int) error {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
+func (p Postgres) ModifyOrder(ctx context.Context, login string, order string, status string, score int) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	_, err := p.Statements.UpdateOrder.ExecContext(ctx, order, login, status, score, time.Now())
 	return err
 }
 
-func (p *Postgres) GetOrders(ctx context.Context, login string) ([]*Order, error) {
-	p.Mutex.RLock()
-	defer p.Mutex.RUnlock()
+func (p Postgres) GetOrders(ctx context.Context, login string) ([]*Order, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
 	return getBulk[*Order](ctx, p.Statements.SelectOrders, login)
 }
 
-func (p *Postgres) AddBalance(ctx context.Context, login string, score int, wd int) error {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
+func (p Postgres) AddBalance(ctx context.Context, login string, score int, wd int) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	_, err := p.Statements.InsertBalance.ExecContext(ctx, login, score, wd)
 	return err
 }
 
-func (p *Postgres) UpdateBalance(ctx context.Context, login string, score int, wd int) error {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
+func (p Postgres) ModifyBalance(ctx context.Context, login string, score int, wd int) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	_, err := p.Statements.UpdateBalance.ExecContext(ctx, login, score, wd)
 	return err
 }
 
-func (p *Postgres) GetBalance(ctx context.Context, login string) (Balance, error) {
-	p.Mutex.RLock()
-	defer p.Mutex.RUnlock()
+func (p Postgres) GetBalance(ctx context.Context, login string) (Balance, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
 	balances, err := getBulk[*Balance](ctx, p.Statements.SelectBalance, login)
 	if err != nil {
 		return Balance{}, err
@@ -244,16 +246,16 @@ func (p *Postgres) GetBalance(ctx context.Context, login string) (Balance, error
 	return *balances[0], nil
 }
 
-func (p *Postgres) AddWithdraw(ctx context.Context, login string, order string, wd int) error {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
+func (p Postgres) AddWithdraw(ctx context.Context, login string, order string, wd int) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	_, err := p.Statements.InsertWithdraw.ExecContext(ctx, order, login, wd, time.Now())
 	return err
 }
 
-func (p *Postgres) GetWithdrawals(ctx context.Context, login string) ([]*Withdraw, error) {
-	p.Mutex.RLock()
-	defer p.Mutex.RUnlock()
+func (p Postgres) GetWithdrawals(ctx context.Context, login string) ([]*Withdraw, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
 	return getBulk[*Withdraw](ctx, p.Statements.SelectWithdrawals, login)
 }
 

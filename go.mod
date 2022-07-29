@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/caarlos0/env v3.5.0+incompatible
+	github.com/go-chi/chi/v5 v5.0.7
 	github.com/jackc/pgx/v4 v4.16.1
 	github.com/rs/zerolog v1.15.0
 	github.com/stretchr/testify v1.8.0
