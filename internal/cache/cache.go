@@ -4,12 +4,13 @@ import "time"
 
 type AuthData struct {
 	Login      string
-	Sign       string
+	Token      string
 	LastActive time.Time
 }
 
 type AuthCache interface {
-	StoreSign(login string, sign string) error
-	VerifySign(login string, sign string) (bool, error)
+	StoreToken(login string, token string) error
+	GetTokenUser(token string) (string, error)
 	HouseKeeper() error
+	GetLifetime() time.Duration
 }

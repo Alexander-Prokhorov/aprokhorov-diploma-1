@@ -19,9 +19,11 @@ type Postgres struct {
 
 type Statements struct {
 	InsertUser        *sql.Stmt
+	SelectUser        *sql.Stmt
 	SelectUsers       *sql.Stmt
 	InsertOrder       *sql.Stmt
 	UpdateOrder       *sql.Stmt
+	SelectOrder       *sql.Stmt
 	SelectOrders      *sql.Stmt
 	InsertBalance     *sql.Stmt
 	UpdateBalance     *sql.Stmt
@@ -66,9 +68,11 @@ func (p *Postgres) GracefulShutdown() {
 	// Close Statements
 
 	p.Statements.InsertUser.Close()
+	p.Statements.SelectUser.Close()
 	p.Statements.SelectUsers.Close()
 	p.Statements.InsertOrder.Close()
 	p.Statements.UpdateOrder.Close()
+	p.Statements.SelectOrder.Close()
 	p.Statements.SelectOrders.Close()
 	p.Statements.InsertBalance.Close()
 	p.Statements.UpdateBalance.Close()
@@ -96,15 +100,16 @@ func (p *Postgres) InitTables(ctx context.Context) error {
 			)`,
 
 		`Orders (
-			order_id int PRIMARY KEY,
+			order_id bigint PRIMARY KEY,
 			login text NOT NULL,
 			status text NOT NULL,
 			score int NOT NULL,
+			created_at timestamp NOT NULL,
 			last_changed timestamp NOT NULL
 			)`,
 
 		`Withdrawals (
-			order_id int PRIMARY KEY,
+			order_id bigint PRIMARY KEY,
 			login text NOT NULL,
 			wd int NOT NULL,
 			time timestamp NOT NULL
@@ -129,13 +134,19 @@ func (p *Postgres) PrepareStatements(ctx context.Context) error {
 	}
 	p.Statements.InsertUser = stmt
 
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT login, pass_hash, key, last_login FROM Users WHERE login = $1")
+	if err != nil {
+		return err
+	}
+	p.Statements.SelectUser = stmt
+
 	stmt, err = p.DB.PrepareContext(ctx, "SELECT login, pass_hash, key, last_login FROM Users")
 	if err != nil {
 		return err
 	}
 	p.Statements.SelectUsers = stmt
 
-	stmt, err = p.DB.PrepareContext(ctx, "INSERT INTO Orders (order_id, login, status, score, last_changed) VALUES ($1, $2, $3, $4, $5)")
+	stmt, err = p.DB.PrepareContext(ctx, "INSERT INTO Orders (order_id, login, status, score, created_at, last_changed) VALUES ($1, $2, $3, $4, $5, $6)")
 	if err != nil {
 		return err
 	}
@@ -147,7 +158,13 @@ func (p *Postgres) PrepareStatements(ctx context.Context) error {
 	}
 	p.Statements.UpdateOrder = stmt
 
-	stmt, err = p.DB.PrepareContext(ctx, "SELECT order_id, login, status, score, last_changed FROM Orders WHERE login = $1")
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT order_id, login, status, score, last_changed, created_at FROM Orders WHERE order_id = $1")
+	if err != nil {
+		return err
+	}
+	p.Statements.SelectOrder = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT order_id, login, status, score, last_changed, created_at FROM Orders WHERE login = $1")
 	if err != nil {
 		return err
 	}
@@ -193,6 +210,22 @@ func (p Postgres) RegisterUser(ctx context.Context, login string, hash string, k
 	return err
 }
 
+func (p Postgres) GetUser(ctx context.Context, login string) (User, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	users, err := getBulk[*User](ctx, p.Statements.SelectUser, login)
+	if err != nil {
+		return User{}, err
+	}
+	if len(users) > 1 {
+		return User{}, errors.New("PG: GetUser unexpected error, get more than 1 result")
+	} else if len(users) == 0 {
+		return User{}, sql.ErrNoRows
+	}
+
+	return *users[0], nil
+}
+
 func (p Postgres) GetUsers(ctx context.Context) ([]*User, error) {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
@@ -202,7 +235,8 @@ func (p Postgres) GetUsers(ctx context.Context) ([]*User, error) {
 func (p Postgres) AddOrder(ctx context.Context, login string, order string) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	_, err := p.Statements.InsertOrder.ExecContext(ctx, order, login, "NEW", 0, time.Now())
+	time := time.Now()
+	_, err := p.Statements.InsertOrder.ExecContext(ctx, order, login, "NEW", 0, time, time)
 	return err
 }
 
@@ -211,6 +245,23 @@ func (p Postgres) ModifyOrder(ctx context.Context, login string, order string, s
 	defer p.mutex.Unlock()
 	_, err := p.Statements.UpdateOrder.ExecContext(ctx, order, login, status, score, time.Now())
 	return err
+}
+
+func (p Postgres) GetOrder(ctx context.Context, order string) (Order, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	orders, err := getBulk[*Order](ctx, p.Statements.SelectOrder, order)
+	if err != nil {
+		return Order{}, err
+	}
+
+	if len(orders) > 1 {
+		return Order{}, errors.New("PG: GetOrder unexpected error, get more than 1 result")
+	} else if len(orders) == 0 {
+		return Order{}, sql.ErrNoRows
+	}
+
+	return *orders[0], nil
 }
 
 func (p Postgres) GetOrders(ctx context.Context, login string) ([]*Order, error) {
@@ -240,9 +291,12 @@ func (p Postgres) GetBalance(ctx context.Context, login string) (Balance, error)
 	if err != nil {
 		return Balance{}, err
 	}
-	if len(balances) != 1 {
+	if len(balances) > 1 {
 		return Balance{}, errors.New("PG: GetBalance unexpected error, get more than 1 result")
+	} else if len(balances) == 0 {
+		return Balance{}, sql.ErrNoRows
 	}
+
 	return *balances[0], nil
 }
 

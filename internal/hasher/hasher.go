@@ -2,5 +2,6 @@ package hasher
 
 type Hasher interface {
 	RandomKey() (string, error)
-	GetHash(string, string) string
+	GenerateToken() (string, error)
+	GetHash(password string, key string) string
 }

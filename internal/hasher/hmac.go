@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()?|\"><.,][}{;:`~"
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()?|><.,][}{:`~"
 
 type HMAC struct{}
 
@@ -30,13 +30,8 @@ func (hm HMAC) RandomKey() (string, error) {
 		sb.WriteByte(charset[rand.Intn(len(charset))])
 	}
 	return sb.String(), nil
-	/*
-		b := make([]byte, 16)
-		_, err := rand.Read(b)
-		if err != nil {
-			return "", err
-		}
-		fmt.Println(string(b))
-		return string(b), nil
-	*/
+}
+
+func (hm HMAC) GenerateToken() (string, error) {
+	return hm.RandomKey()
 }

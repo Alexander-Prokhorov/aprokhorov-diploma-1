@@ -16,7 +16,9 @@ import (
 	"aprokhorov-diploma-1/internal/hasher"
 	"aprokhorov-diploma-1/internal/logger"
 	"aprokhorov-diploma-1/internal/storage"
+	"aprokhorov-diploma-1/internal/verificator"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -78,9 +80,19 @@ func main() {
 	go func() {
 		for {
 			<-authHousekeeperTicker.C
-			authCache.HouseKeeper()
+			err := authCache.HouseKeeper()
+			if err != nil {
+				log.Error("MemCache:HouseKeeper", err.Error())
+			}
+			// TODO: add closing channel
 		}
 	}()
+
+	// Init Verificator
+	verificator, err := verificator.NewLuhn()
+	if err != nil {
+		log.Panic("main", err.Error())
+	}
 
 	/*
 		POST /api/user/register — регистрация пользователя;
@@ -92,16 +104,26 @@ func main() {
 		GET /api/user/balance/withdrawals
 	*/
 	r := chi.NewRouter()
-	r.Route("/api/user", func(r chi.Router) {
-		r.Post("/register", handlers.Register(database, authCache, mainHasher, log))
+	r.Use(middleware.Logger)      // Access Log
+	r.Use(middleware.Compress(5)) // Support for gzip
 
-		r.Post("/login", handlers.Authorize)
-		r.Post("/orders", handlers.NewOrder)
-		r.Get("/orders", handlers.GetOrders)
+	r.Route("/api", func(r chi.Router) {
+		r.Route("/user", func(r chi.Router) {
+			r.Use(handlers.CheckHeaders(log)) // Check content-type == app/json for post.request
+			r.Post("/register", handlers.Authorize(true, database, authCache, mainHasher, log))
+			r.Post("/login", handlers.Authorize(false, database, authCache, mainHasher, log))
+		})
+		r.Route("/orders", func(r chi.Router) {
+			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
+			r.Post("/", handlers.NewOrder(database, verificator, log))
+			r.Get("/", handlers.GetOrders(database, log))
+		})
 		r.Route("/balance", func(r chi.Router) {
-			r.Get("/", handlers.GetBalance)
-			r.Post("/withdraw", handlers.AddWithdraw)
-			r.Get("/withdrawals", handlers.GetWithdrawals)
+			r.Use(handlers.CheckHeaders(log))              // Check content-type == app/json for post.request
+			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
+			r.Get("/", handlers.GetBalance(database, log))
+			//r.Post("/withdraw", handlers.AddWithdraw)
+			//r.Get("/withdrawals", handlers.GetWithdrawals)
 		})
 	})
 

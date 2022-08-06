@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+type JSONTime time.Time
+
+func (t JSONTime) MarshalJSON() ([]byte, error) {
+	//do your serializing here
+	stamp := fmt.Sprintf("\"%s\"", time.Time(t).Format(time.RFC3339))
+	return []byte(stamp), nil
+}
+
 // Data Structs
 type Parser interface {
 	New() Parser
@@ -51,7 +59,7 @@ func (u *User) Parse(values []string) error {
 		case 2:
 			u.Key = v
 		case 3:
-			time, err := time.Parse("2006-01-02T15:04:05.000000Z", v)
+			time, err := time.Parse("2006-01-02T15:04:05.99Z", v)
 			if err != nil {
 				return err
 			}
@@ -62,11 +70,12 @@ func (u *User) Parse(values []string) error {
 }
 
 type Order struct {
-	OrderId    string    `db:"order_id"`
-	Login      string    `db:"login"`
-	Status     string    `db:"status"`
-	Score      int       `db:"score"`
-	LastChange time.Time `db:"last_changed"`
+	OrderId    string   `db:"order_id" json:"number"`
+	Login      string   `db:"login" json:"-"`
+	Status     string   `db:"status" json:"status"`
+	Score      int      `db:"score" json:"accrual"`
+	LastChange JSONTime `db:"last_changed" json:"-"`
+	UploadedAt JSONTime `db:"created_at" json:"uploaded_at"`
 }
 
 func (o *Order) New() Parser { return &Order{} }
@@ -103,21 +112,28 @@ func (o *Order) Parse(values []string) error {
 			}
 			o.Score = score
 		case 4:
-			time, err := time.Parse("2006-01-02T15:04:05.000000Z", v)
+			time, err := time.Parse("2006-01-02T15:04:05.99Z", v)
 			if err != nil {
 				return err
 			}
-			o.LastChange = time
+			o.LastChange = JSONTime(time)
+
+		case 5:
+			time, err := time.Parse("2006-01-02T15:04:05.99Z", v)
+			if err != nil {
+				return err
+			}
+			o.UploadedAt = JSONTime(time)
 		}
 	}
 	return nil
 }
 
 type Withdraw struct {
-	OrderId  string    `db:"order_id"`
-	Login    string    `db:"login"`
-	Withdraw int       `db:"wd"`
-	Time     time.Time `db:"time"`
+	OrderId  string   `db:"order_id"`
+	Login    string   `db:"login"`
+	Withdraw int      `db:"wd"`
+	Time     JSONTime `db:"time"`
 }
 
 func (w *Withdraw) New() Parser { return &Withdraw{} }
@@ -152,12 +168,12 @@ func (w *Withdraw) Parse(values []string) error {
 			}
 			w.Withdraw = vv
 		case 3:
-			time, err := time.Parse("2006-01-02T15:04:05.000000Z", v)
+			time, err := time.Parse("2006-01-02T15:04:05.99Z", v)
 			if err != nil {
 				return err
 			}
 
-			w.Time = time
+			w.Time = JSONTime(time)
 		}
 
 	}
@@ -166,9 +182,9 @@ func (w *Withdraw) Parse(values []string) error {
 }
 
 type Balance struct {
-	Login            string `db:"login"`
-	CurrentScore     int    `db:"cur_score"`
-	TotalWithdrawals int    `db:"total_wd"`
+	Login            string `db:"login" json:"-"`
+	CurrentScore     int    `db:"cur_score" json:"current"`
+	TotalWithdrawals int    `db:"total_wd" json:"withdraw"`
 }
 
 func (b *Balance) New() Parser { return &Balance{} }
@@ -189,7 +205,7 @@ func (b *Balance) Parse(values []string) error {
 		if !ok {
 			return err
 		}
-		fmt.Println("Parsing: ", v)
+
 		// Value Order:
 		// login, cur_score, total_wd
 		switch i {
@@ -217,9 +233,11 @@ func (b *Balance) Parse(values []string) error {
 // Interface for use in Project
 type Storage interface {
 	RegisterUser(ctx context.Context, login string, hash string, key string) error
+	GetUser(ctx context.Context, login string) (User, error)
 	GetUsers(ctx context.Context) ([]*User, error)
 	AddOrder(ctx context.Context, login string, order string) error
 	ModifyOrder(ctx context.Context, login string, order string, status string, score int) error
+	GetOrder(ctx context.Context, order string) (Order, error)
 	GetOrders(ctx context.Context, login string) ([]*Order, error)
 	AddBalance(ctx context.Context, login string, score int, wd int) error
 	ModifyBalance(ctx context.Context, login string, score int, wd int) error

@@ -12,69 +12,73 @@ import (
 const parent string = "MemCache"
 
 type MemCache struct {
-	DB      map[string]AuthData
-	log     logger.Logger
-	mutex   *sync.RWMutex
-	timeout time.Duration
+	DB       map[string]AuthData
+	log      logger.Logger
+	mutex    *sync.RWMutex
+	Lifetime time.Duration
 }
 
 func NewMemCache(timeout time.Duration, log logger.Logger) *MemCache {
 	db := make(map[string]AuthData)
 	return &MemCache{
-		DB:      db,
-		log:     log,
-		mutex:   &sync.RWMutex{},
-		timeout: timeout,
+		DB:       db,
+		log:      log,
+		mutex:    &sync.RWMutex{},
+		Lifetime: timeout,
 	}
 }
 
-func (mc *MemCache) StoreSign(login string, sign string) error {
+func (mc *MemCache) GetLifetime() time.Duration {
+	return mc.Lifetime
+}
+
+func (mc *MemCache) StoreToken(login string, token string) error {
 	ad := AuthData{
 		Login:      login,
-		Sign:       sign,
+		Token:      token,
 		LastActive: time.Now(),
 	}
 
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
-	mc.DB[ad.Login] = ad
-	mc.log.Debug(parent, fmt.Sprintf("Store Sign for User: %s", ad.Login))
+	mc.DB[ad.Token] = ad
+	mc.log.Debug(parent, fmt.Sprintf("Store Token for User: %s", ad.Login))
 	return nil
 }
 
-func (mc *MemCache) VerifySign(login string, sign string) (bool, error) {
+func (mc *MemCache) GetTokenUser(token string) (string, error) {
 	ad := AuthData{
-		Login:      login,
-		Sign:       sign,
+		Login:      "",
+		Token:      token,
 		LastActive: time.Now(),
 	}
 
-	adLocal, exist := mc.DB[ad.Login]
+	adLocal, exist := mc.DB[ad.Token]
 	if !exist {
-		mc.log.Debug(parent, fmt.Sprintf("Verify() No Sign for User: %s", ad.Login))
-		return false, errors.New("Please, Log in")
+		mc.log.Debug(parent, fmt.Sprintf("Verify() No User for Token: %s", ad.Token))
+		return ad.Login, errors.New("Please, Log in")
 	}
 
-	if time.Since(ad.LastActive) > mc.timeout {
-		mc.log.Debug(parent, fmt.Sprintf("Verify() Sign Expired for User: %s", ad.Login))
-		return false, errors.New("Expired. Please, Login")
+	if time.Since(adLocal.LastActive) > mc.Lifetime {
+		mc.log.Debug(parent, fmt.Sprintf("Verify() Token Expired for User: %s", adLocal.Login))
+		return ad.Login, errors.New("Expired. Please, Login")
 	}
-	if ad.Sign == adLocal.Sign {
-		mc.log.Debug(parent, fmt.Sprintf("Verify() Successfully find Sign for User: %s", ad.Login))
-		return true, nil
+	if ad.Token == adLocal.Token {
+		mc.log.Debug(parent, fmt.Sprintf("Verify() Successfully find Token for User: %s", adLocal.Login))
+		return adLocal.Login, nil
 	}
-	mc.log.Debug(parent, fmt.Sprintf("Verify() Unexpected condition User: %s", ad.Login))
-	return false, errors.New("Failed")
+	mc.log.Debug(parent, fmt.Sprintf("Verify() Unexpected condition Token: %s", ad.Token))
+	return ad.Login, errors.New("Failed")
 }
 
 func (mc *MemCache) HouseKeeper() error {
 	mc.log.Debug(parent, "HouseKeeper() Starts")
 	for _, ad := range mc.DB {
-		if time.Since(ad.LastActive) > mc.timeout {
+		if time.Since(ad.LastActive) > mc.Lifetime {
 			mc.mutex.Lock()
-			delete(mc.DB, ad.Login)
+			delete(mc.DB, ad.Token)
 			mc.mutex.Unlock()
-			mc.log.Debug(parent, fmt.Sprintf("HouseKeeper() Delete Expired User: %s", ad.Login))
+			mc.log.Debug(parent, fmt.Sprintf("HouseKeeper() Delete Expired Token: %s", ad.Token))
 		}
 	}
 	return nil
