@@ -207,7 +207,10 @@ func (p Postgres) RegisterUser(ctx context.Context, login string, hash string, k
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	_, err := p.Statements.InsertUser.ExecContext(ctx, login, hash, key, time.Now())
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p Postgres) GetUser(ctx context.Context, login string) (User, error) {
