@@ -44,6 +44,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// Init Config from Env
+	err = config.EnvInit()
+	if err != nil {
+		log.Error("main", "Can't get enviroment")
+	}
+
 	log.Info("main", "Start GopherMart Today!")
 	log.Info("main", fmt.Sprint(config))
 
