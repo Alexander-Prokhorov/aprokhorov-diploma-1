@@ -18,7 +18,7 @@ func CheckHeaders(log logger.Logger) func(http.Handler) http.Handler {
 			const parent = "middleware:checkContentType"
 			if r.Method == http.MethodPost {
 				if r.Header.Get("Content-Type") != "application/json" {
-					log.Info(parent, "Request not 'application\\json'")
+					log.Info(parent, "Request not 'application/json'")
 					errorText := fmt.Sprintf("only application/json supported, get %s", r.Header.Get("Content-Type"))
 					http.Error(w, errorText, http.StatusNotImplemented)
 					return

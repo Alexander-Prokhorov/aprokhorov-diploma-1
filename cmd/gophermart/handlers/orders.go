@@ -130,6 +130,7 @@ func GetOrders(s storage.Storage, log logger.Logger) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		_, err = w.Write(ordersJson)
 		if err != nil {
 			log.Error(parent, err.Error())
