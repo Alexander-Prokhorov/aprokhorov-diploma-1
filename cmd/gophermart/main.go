@@ -109,14 +109,16 @@ func main() {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/user", func(r chi.Router) {
-			r.Use(handlers.CheckHeaders(log)) // Check content-type == app/json for post.request
-			r.Post("/register", handlers.Authorize(true, database, authCache, mainHasher, log))
-			r.Post("/login", handlers.Authorize(false, database, authCache, mainHasher, log))
-		})
-		r.Route("/orders", func(r chi.Router) {
-			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
-			r.Post("/", handlers.NewOrder(database, verificator, log))
-			r.Get("/", handlers.GetOrders(database, log))
+			r.Route("/", func(r chi.Router) {
+				r.Use(handlers.CheckHeaders(log)) // Check content-type == app/json for post.request
+				r.Post("/register", handlers.Authorize(true, database, authCache, mainHasher, log))
+				r.Post("/login", handlers.Authorize(false, database, authCache, mainHasher, log))
+			})
+			r.Route("/orders", func(r chi.Router) {
+				r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
+				r.Post("/", handlers.NewOrder(database, verificator, log))
+				r.Get("/", handlers.GetOrders(database, log))
+			})
 		})
 		r.Route("/balance", func(r chi.Router) {
 			r.Use(handlers.CheckHeaders(log))              // Check content-type == app/json for post.request
