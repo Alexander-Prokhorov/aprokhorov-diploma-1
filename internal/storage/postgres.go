@@ -33,7 +33,10 @@ type Statements struct {
 }
 
 func NewPostgresClient(ctx context.Context, address string, dbname string) (Postgres, error) {
-	dbName := fmt.Sprintf("/%s", dbname)
+	dbName := ""
+	if dbname != "" {
+		dbName = fmt.Sprintf("/%s", dbname)
+	}
 	db, err := sql.Open("pgx", address+dbName)
 
 	// Сравнить значение err с ошибкой sql Database NOT Exist

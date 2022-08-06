@@ -40,7 +40,7 @@ func Authorize(register bool, s storage.Storage, ac cache.AuthCache, hasher hash
 
 		if register {
 			// Register User in Database
-			log.Debug(parent, fmt.Sprintf("Try to Register User: %s, PassHash: %v, Key: %v", jsonUser.Login, jsonUser.PassHash, key))
+			log.Debug(parent, fmt.Sprintf("Try to Register User: %s", jsonUser.Login))
 			if err := s.RegisterUser(r.Context(), jsonUser.Login, jsonUser.PassHash, key); err != nil {
 				if strings.Contains(err.Error(), "(SQLSTATE 23505)") {
 					log.Info(parent, fmt.Sprintf("Already exists User with Login: %s", jsonUser.Login))
