@@ -2,7 +2,6 @@ package logger
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -13,7 +12,8 @@ type ZeroLogger struct {
 }
 
 func NewZeroLogger(level string) (*ZeroLogger, error) {
-	logger := zerolog.New(os.Stdin)
+	out := zerolog.NewConsoleWriter()
+	logger := zerolog.New(out)
 	zeroLevel, err := zerolog.ParseLevel(level)
 	if err != nil {
 		return &ZeroLogger{}, err

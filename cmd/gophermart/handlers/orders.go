@@ -75,6 +75,9 @@ func NewOrder(s storage.Storage, v verificator.Verificator, log logger.Logger) h
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			http.Error(w, "Success", http.StatusAccepted)
+			log.Info(parent, fmt.Sprintf("Create order %v for %v successfully", orderNo, login))
+			return
 		}
 		// If Order exist already - check why
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -88,15 +91,6 @@ func NewOrder(s storage.Storage, v verificator.Verificator, log logger.Logger) h
 				return
 			}
 		}
-
-		_, err = w.Write([]byte("Success"))
-		if err != nil {
-			log.Error(parent, err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		log.Info(parent, fmt.Sprintf("Create order %v for %v successfully", orderNo, login))
 	}
 }
 
