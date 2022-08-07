@@ -40,9 +40,9 @@ func (a *AccrualService) FetchData(orderNo string) (Order, error) {
 	// build url for request
 	url := fmt.Sprintf("/api/orders/%s", orderNo)
 
-	fmt.Println("http://" + a.URL + url)
+	//fmt.Println("http://" + a.URL + url)
 	// Request himself
-	respond, err := a.Request.Get("http://" + a.URL + url)
+	respond, err := a.Request.Get(a.URL + url)
 	if err != nil {
 		return Order{}, err
 	}
