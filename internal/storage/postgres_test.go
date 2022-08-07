@@ -18,9 +18,9 @@ func TestPostgres_InitTables(t *testing.T) {
 			name: "Create Tables",
 			sqlExpected: []string{
 				"CREATE TABLE IF NOT EXISTS Users \\( login text PRIMARY KEY, pass_hash text NOT NULL, key text NOT NULL, last_login timestamp NOT NULL \\)",
-				"CREATE TABLE IF NOT EXISTS Balance \\( login text PRIMARY KEY, cur_score int NOT NULL, total_wd int NOT NULL \\)",
-				"CREATE TABLE IF NOT EXISTS Orders \\( order_id bigint PRIMARY KEY, login text NOT NULL, status text NOT NULL, score int NOT NULL, created_at timestamp NOT NULL, last_changed timestamp NOT NULL \\)",
-				"CREATE TABLE IF NOT EXISTS Withdrawals \\( order_id bigint PRIMARY KEY, login text NOT NULL, wd int NOT NULL, time timestamp NOT NULL \\)",
+				"CREATE TABLE IF NOT EXISTS Balance \\( login text PRIMARY KEY, cur_score double precision NOT NULL, total_wd double precision NOT NULL \\)",
+				"CREATE TABLE IF NOT EXISTS Orders \\( order_id bigint PRIMARY KEY, login text NOT NULL, status text NOT NULL, score double precision NOT NULL, created_at timestamp NOT NULL, last_changed timestamp NOT NULL \\)",
+				"CREATE TABLE IF NOT EXISTS Withdrawals \\( order_id bigint PRIMARY KEY, login text NOT NULL, wd double precision NOT NULL, time timestamp NOT NULL \\)",
 			},
 		},
 	}

@@ -73,7 +73,7 @@ type Order struct {
 	OrderId    string   `db:"order_id" json:"number"`
 	Login      string   `db:"login" json:"-"`
 	Status     string   `db:"status" json:"status"`
-	Score      int      `db:"score" json:"accrual"`
+	Score      float64  `db:"score" json:"accrual"`
 	LastChange JSONTime `db:"last_changed" json:"-"`
 	UploadedAt JSONTime `db:"created_at" json:"uploaded_at"`
 }
@@ -106,7 +106,7 @@ func (o *Order) Parse(values []string) error {
 		case 2:
 			o.Status = v
 		case 3:
-			score, err := strconv.Atoi(v)
+			score, err := strconv.ParseFloat(v, 64)
 			if err != nil {
 				return err
 			}
@@ -132,7 +132,7 @@ func (o *Order) Parse(values []string) error {
 type Withdraw struct {
 	OrderId  string   `db:"order_id"`
 	Login    string   `db:"login"`
-	Withdraw int      `db:"wd"`
+	Withdraw float64  `db:"wd"`
 	Time     JSONTime `db:"time"`
 }
 
@@ -162,7 +162,7 @@ func (w *Withdraw) Parse(values []string) error {
 		case 1:
 			w.Login = v
 		case 2:
-			vv, err := strconv.Atoi(v)
+			vv, err := strconv.ParseFloat(v, 64)
 			if err != nil {
 				return err
 			}
@@ -182,9 +182,9 @@ func (w *Withdraw) Parse(values []string) error {
 }
 
 type Balance struct {
-	Login            string `db:"login" json:"-"`
-	CurrentScore     int    `db:"cur_score" json:"current"`
-	TotalWithdrawals int    `db:"total_wd" json:"withdraw"`
+	Login            string  `db:"login" json:"-"`
+	CurrentScore     float64 `db:"cur_score" json:"current"`
+	TotalWithdrawals float64 `db:"total_wd" json:"withdraw"`
 }
 
 func (b *Balance) New() Parser { return &Balance{} }
@@ -212,13 +212,13 @@ func (b *Balance) Parse(values []string) error {
 		case 0:
 			b.Login = v
 		case 1:
-			vv, err := strconv.Atoi(v)
+			vv, err := strconv.ParseFloat(v, 64)
 			if err != nil {
 				return err
 			}
 			b.CurrentScore = vv
 		case 2:
-			vv, err := strconv.Atoi(v)
+			vv, err := strconv.ParseFloat(v, 64)
 			if err != nil {
 				return err
 			}
@@ -236,13 +236,13 @@ type Storage interface {
 	GetUser(ctx context.Context, login string) (User, error)
 	GetUsers(ctx context.Context) ([]*User, error)
 	AddOrder(ctx context.Context, login string, order string) error
-	ModifyOrder(ctx context.Context, order string, status string, score int) error
+	ModifyOrder(ctx context.Context, order string, status string, score float64) error
 	GetOrder(ctx context.Context, order string) (Order, error)
 	GetOrdersByUser(ctx context.Context, login string) ([]*Order, error)
 	GetOrdersUndone(ctx context.Context) ([]*Order, error)
-	AddBalance(ctx context.Context, login string, score int, wd int) error
-	ModifyBalance(ctx context.Context, login string, score int, wd int) error
+	AddBalance(ctx context.Context, login string, score float64, wd float64) error
+	ModifyBalance(ctx context.Context, login string, score float64, wd float64) error
 	GetBalance(ctx context.Context, login string) (Balance, error)
-	AddWithdraw(ctx context.Context, login string, order string, wd int) error
+	AddWithdraw(ctx context.Context, login string, order string, wd float64) error
 	GetWithdrawals(ctx context.Context, login string) ([]*Withdraw, error)
 }

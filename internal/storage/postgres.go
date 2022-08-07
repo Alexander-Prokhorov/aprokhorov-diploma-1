@@ -100,15 +100,15 @@ func (p *Postgres) InitTables(ctx context.Context) error {
 
 		`Balance (
 			login text PRIMARY KEY,
-			cur_score int NOT NULL,
-			total_wd int NOT NULL
+			cur_score double precision NOT NULL,
+			total_wd double precision NOT NULL
 			)`,
 
 		`Orders (
 			order_id bigint PRIMARY KEY,
 			login text NOT NULL,
 			status text NOT NULL,
-			score int NOT NULL,
+			score double precision NOT NULL,
 			created_at timestamp NOT NULL,
 			last_changed timestamp NOT NULL
 			)`,
@@ -116,7 +116,7 @@ func (p *Postgres) InitTables(ctx context.Context) error {
 		`Withdrawals (
 			order_id bigint PRIMARY KEY,
 			login text NOT NULL,
-			wd int NOT NULL,
+			wd double precision NOT NULL,
 			time timestamp NOT NULL
 			)`,
 	}
@@ -251,7 +251,7 @@ func (p Postgres) AddOrder(ctx context.Context, login string, order string) erro
 	return err
 }
 
-func (p Postgres) ModifyOrder(ctx context.Context, order string, status string, score int) error {
+func (p Postgres) ModifyOrder(ctx context.Context, order string, status string, score float64) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	_, err := p.Statements.UpdateOrder.ExecContext(ctx, order, status, score, time.Now())
@@ -287,14 +287,14 @@ func (p Postgres) GetOrdersUndone(ctx context.Context) ([]*Order, error) {
 	return getBulk[*Order](ctx, p.Statements.SelectOrdersUndone)
 }
 
-func (p Postgres) AddBalance(ctx context.Context, login string, score int, wd int) error {
+func (p Postgres) AddBalance(ctx context.Context, login string, score float64, wd float64) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	_, err := p.Statements.InsertBalance.ExecContext(ctx, login, score, wd)
 	return err
 }
 
-func (p Postgres) ModifyBalance(ctx context.Context, login string, score int, wd int) error {
+func (p Postgres) ModifyBalance(ctx context.Context, login string, score float64, wd float64) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	_, err := p.Statements.UpdateBalance.ExecContext(ctx, login, score, wd)
@@ -317,7 +317,7 @@ func (p Postgres) GetBalance(ctx context.Context, login string) (Balance, error)
 	return *balances[0], nil
 }
 
-func (p Postgres) AddWithdraw(ctx context.Context, login string, order string, wd int) error {
+func (p Postgres) AddWithdraw(ctx context.Context, login string, order string, wd float64) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	_, err := p.Statements.InsertWithdraw.ExecContext(ctx, order, login, wd, time.Now())

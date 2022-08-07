@@ -24,7 +24,7 @@ func TestAccrualService_FetchData(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			a := NewAccrualService("localhost:8081", time.Second)
+			a := NewAccrualService("http://localhost:8081", time.Second)
 			order, err := a.FetchData(tt.orderNo)
 
 			if !tt.wantErr {

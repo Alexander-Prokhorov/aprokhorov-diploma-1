@@ -11,9 +11,9 @@ import (
 )
 
 type Order struct {
-	OrderID string `json:"order"`
-	Status  string `json:"status"`
-	Accrual int    `json:"accrual"`
+	OrderID string  `json:"order"`
+	Status  string  `json:"status"`
+	Accrual float64 `json:"accrual"`
 }
 
 func (o Order) String() string {

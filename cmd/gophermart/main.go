@@ -30,7 +30,7 @@ func main() {
 	// Init flags
 	flag.StringVar(&config.Server, "a", "127.0.0.1:8080", "Server ip:port")
 	flag.StringVar(&config.Database, "d", "", "Database ip:port")
-	flag.StringVar(&config.AccrualService, "r", "127.0.0.1:8081", "AccrualService ip:port")
+	flag.StringVar(&config.AccrualService, "r", "http://127.0.0.1:8081", "AccrualService ip:port")
 	flag.StringVar(&config.AccrualFrequency, "rf", "50us", "AccrualService Frequency, default:1s")
 	flag.StringVar(&config.DBName, "dn", "", "Database Name")
 	flag.StringVar(&config.LogLevel, "l", "debug", "Log Level, default:debug")
