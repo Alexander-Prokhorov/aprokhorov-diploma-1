@@ -110,7 +110,7 @@ func main() {
 		GET /api/user/orders — получение списка загруженных пользователем номеров заказов, статусов их обработки и информации о начислениях;
 		GET /api/user/balance — получение текущего баланса счёта баллов лояльности пользователя;
 		POST /api/user/balance/withdraw — запрос на списание баллов с накопительного счёта в счёт оплаты нового заказа;
-		GET /api/user/balance/withdrawals
+		GET /api/user/balance/withdrawals -- ошибка в ТЗ, правильный /api/user/withdrawals
 	*/
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)      // Access Log
@@ -133,9 +133,9 @@ func main() {
 			r.Use(handlers.CheckHeaders(log))              // Check content-type == app/json for post.request
 			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
 			r.Get("/", handlers.GetBalance(database, log))
-			r.Get("/withdrawals", handlers.GetWithdrawals(database, log))
 			r.Post("/withdraw", handlers.AddWithdraw(database, log))
 		})
+		r.Get("/withdrawals", handlers.GetWithdrawals(database, log))
 	})
 
 	// Init Server
