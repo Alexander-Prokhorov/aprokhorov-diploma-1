@@ -133,7 +133,7 @@ type Withdraw struct {
 	OrderId  string   `db:"order_id" json:"order"`
 	Login    string   `db:"login" json:"-"`
 	Withdraw float64  `db:"wd" json:"sum"`
-	Time     JSONTime `db:"time" json:"precessed_at"`
+	Time     JSONTime `db:"time" json:"processed_at"`
 }
 
 func (w *Withdraw) New() Parser { return &Withdraw{} }
