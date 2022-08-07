@@ -10,6 +10,7 @@ type Config struct {
 	Server                   string `env:"RUN_ADDRESS"`
 	Database                 string `env:"DATABASE_URI"`
 	AccrualService           string `env:"ACCRUAL_SYSTEM_ADDRESS"`
+	AccrualFrequency         string `env:"ACCRUAL_FREQUENCY"`
 	DBName                   string `env:"DATABASE_NAME"`
 	LogLevel                 string `env:"GOPHERMART_LOGLEVEL"`
 	AuthCacheTimeout         string `env:"AUTH_CACHE_TIMEOUT"`

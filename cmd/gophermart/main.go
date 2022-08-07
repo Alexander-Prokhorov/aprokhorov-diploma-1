@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"aprokhorov-diploma-1/cmd/gophermart/accrual"
 	"aprokhorov-diploma-1/cmd/gophermart/config"
 	"aprokhorov-diploma-1/cmd/gophermart/handlers"
 	"aprokhorov-diploma-1/internal/cache"
@@ -29,7 +30,8 @@ func main() {
 	// Init flags
 	flag.StringVar(&config.Server, "a", "127.0.0.1:8080", "Server ip:port")
 	flag.StringVar(&config.Database, "d", "", "Database ip:port")
-	flag.StringVar(&config.AccrualService, "r", "127.0.0.1:8082", "AccrualService ip:port")
+	flag.StringVar(&config.AccrualService, "r", "127.0.0.1:8081", "AccrualService ip:port")
+	flag.StringVar(&config.AccrualFrequency, "rf", "1s", "AccrualService Frequency, default:1s")
 	flag.StringVar(&config.DBName, "dn", "", "Database Name")
 	flag.StringVar(&config.LogLevel, "l", "debug", "Log Level, default:debug")
 	flag.StringVar(&config.AuthCacheTimeout, "at", "300s", "Auth Cache Timeout, default:300s")
@@ -64,7 +66,7 @@ func main() {
 	// Init Database
 	database, err := storage.NewPostgresClient(ctx, config.Database, config.DBName)
 	if err != nil {
-		log.Error("main", err.Error())
+		log.Fatal("main", err.Error())
 	}
 	defer database.GracefulShutdown()
 
@@ -74,13 +76,13 @@ func main() {
 	// Init AuthCache
 	authCacheTimeout, err := time.ParseDuration(config.AuthCacheTimeout)
 	if err != nil {
-		log.Panic("main", err.Error())
+		log.Fatal("main", err.Error())
 	}
 	authCache := cache.NewMemCache(authCacheTimeout, log)
 
 	authCacheHousekeeper, err := time.ParseDuration(config.AuthCacheHouseKeeperTime)
 	if err != nil {
-		log.Panic("main", err.Error())
+		log.Fatal("main", err.Error())
 	}
 	authHousekeeperTicker := time.NewTicker(authCacheHousekeeper)
 
@@ -98,7 +100,7 @@ func main() {
 	// Init Verificator
 	verificator, err := verificator.NewLuhn()
 	if err != nil {
-		log.Panic("main", err.Error())
+		log.Fatal("main", err.Error())
 	}
 
 	/*
@@ -147,6 +149,51 @@ func main() {
 	}()
 
 	log.Info("main", "Server Started")
+
+	// Accrual Service Operations
+	accrual := accrual.NewAccrualService(config.AccrualService, time.Second)
+
+	ticketAccrual := time.NewTicker(time.Second)
+
+	go func(ctx context.Context, database storage.Storage) {
+		for {
+			select {
+			case <-ticketAccrual.C:
+				log.Debug("Accrual:CheckTask", "Update Orders from Accrual Service")
+				orders, err := database.GetOrdersUndone(ctx)
+				if err != nil {
+					log.Error("Accrual:CheckTask", err.Error())
+				}
+
+				for _, order := range orders {
+					orderAccrual, err := accrual.FetchData(order.OrderId)
+					if err != nil {
+						log.Info("Accrual:CheckTask", err.Error())
+					}
+
+					log.Debug("Accrual:CheckTask", fmt.Sprint(orderAccrual))
+					err = database.ModifyOrder(ctx, orderAccrual.OrderID, orderAccrual.Status, orderAccrual.Accrual)
+					if err != nil {
+						log.Info("Accrual:CheckTask", err.Error())
+					}
+
+					balance, err := database.GetBalance(ctx, order.Login)
+					if err != nil {
+						log.Info("Accrual:CheckTask", err.Error())
+					}
+
+					newBalance := balance.CurrentScore + orderAccrual.Accrual
+					err = database.ModifyBalance(ctx, order.Login, newBalance, balance.TotalWithdrawals)
+					if err != nil {
+						log.Info("Accrual:CheckTask", err.Error())
+					}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}(ctx, database)
+
 	<-done
 	log.Info("main", "Shutdown")
 

@@ -18,18 +18,19 @@ type Postgres struct {
 }
 
 type Statements struct {
-	InsertUser        *sql.Stmt
-	SelectUser        *sql.Stmt
-	SelectUsers       *sql.Stmt
-	InsertOrder       *sql.Stmt
-	UpdateOrder       *sql.Stmt
-	SelectOrder       *sql.Stmt
-	SelectOrders      *sql.Stmt
-	InsertBalance     *sql.Stmt
-	UpdateBalance     *sql.Stmt
-	SelectBalance     *sql.Stmt
-	InsertWithdraw    *sql.Stmt
-	SelectWithdrawals *sql.Stmt
+	InsertUser         *sql.Stmt
+	SelectUser         *sql.Stmt
+	SelectUsers        *sql.Stmt
+	InsertOrder        *sql.Stmt
+	UpdateOrder        *sql.Stmt
+	SelectOrder        *sql.Stmt
+	SelectOrdersByUser *sql.Stmt
+	SelectOrdersUndone *sql.Stmt
+	InsertBalance      *sql.Stmt
+	UpdateBalance      *sql.Stmt
+	SelectBalance      *sql.Stmt
+	InsertWithdraw     *sql.Stmt
+	SelectWithdrawals  *sql.Stmt
 }
 
 func NewPostgresClient(ctx context.Context, address string, dbname string) (Postgres, error) {
@@ -76,7 +77,8 @@ func (p *Postgres) GracefulShutdown() {
 	p.Statements.InsertOrder.Close()
 	p.Statements.UpdateOrder.Close()
 	p.Statements.SelectOrder.Close()
-	p.Statements.SelectOrders.Close()
+	p.Statements.SelectOrdersByUser.Close()
+	p.Statements.SelectOrdersUndone.Close()
 	p.Statements.InsertBalance.Close()
 	p.Statements.UpdateBalance.Close()
 	p.Statements.SelectBalance.Close()
@@ -155,7 +157,7 @@ func (p *Postgres) PrepareStatements(ctx context.Context) error {
 	}
 	p.Statements.InsertOrder = stmt
 
-	stmt, err = p.DB.PrepareContext(ctx, "UPDATE Orders SET status = $3, score = $4, last_changed = $5 WHERE login = $2 AND order_id = $1")
+	stmt, err = p.DB.PrepareContext(ctx, "UPDATE Orders SET status = $2, score = $3, last_changed = $4 WHERE order_id = $1")
 	if err != nil {
 		return err
 	}
@@ -171,7 +173,13 @@ func (p *Postgres) PrepareStatements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	p.Statements.SelectOrders = stmt
+	p.Statements.SelectOrdersByUser = stmt
+
+	stmt, err = p.DB.PrepareContext(ctx, "SELECT order_id, login, status, score, last_changed, created_at FROM Orders WHERE status != 'INVALID' AND status != 'PROCESSED'")
+	if err != nil {
+		return err
+	}
+	p.Statements.SelectOrdersUndone = stmt
 
 	stmt, err = p.DB.PrepareContext(ctx, "INSERT INTO Balance (login, cur_score, total_wd) VALUES ($1, $2, $3)")
 	if err != nil {
@@ -243,10 +251,10 @@ func (p Postgres) AddOrder(ctx context.Context, login string, order string) erro
 	return err
 }
 
-func (p Postgres) ModifyOrder(ctx context.Context, login string, order string, status string, score int) error {
+func (p Postgres) ModifyOrder(ctx context.Context, order string, status string, score int) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	_, err := p.Statements.UpdateOrder.ExecContext(ctx, order, login, status, score, time.Now())
+	_, err := p.Statements.UpdateOrder.ExecContext(ctx, order, status, score, time.Now())
 	return err
 }
 
@@ -267,10 +275,16 @@ func (p Postgres) GetOrder(ctx context.Context, order string) (Order, error) {
 	return *orders[0], nil
 }
 
-func (p Postgres) GetOrders(ctx context.Context, login string) ([]*Order, error) {
+func (p Postgres) GetOrdersByUser(ctx context.Context, login string) ([]*Order, error) {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
-	return getBulk[*Order](ctx, p.Statements.SelectOrders, login)
+	return getBulk[*Order](ctx, p.Statements.SelectOrdersByUser, login)
+}
+
+func (p Postgres) GetOrdersUndone(ctx context.Context) ([]*Order, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	return getBulk[*Order](ctx, p.Statements.SelectOrdersUndone)
 }
 
 func (p Postgres) AddBalance(ctx context.Context, login string, score int, wd int) error {

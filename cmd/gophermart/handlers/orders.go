@@ -105,7 +105,7 @@ func GetOrders(s storage.Storage, log logger.Logger) http.HandlerFunc {
 			return
 		}
 
-		orders, err := s.GetOrders(r.Context(), login)
+		orders, err := s.GetOrdersByUser(r.Context(), login)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				log.Info(parent, fmt.Sprintf("User:%v No Orders", login))
@@ -123,7 +123,7 @@ func GetOrders(s storage.Storage, log logger.Logger) http.HandlerFunc {
 			return
 		}
 
-		ordersJson, err := json.MarshalIndent(orders, "", "  ")
+		ordersJSON, err := json.MarshalIndent(orders, "", "  ")
 		if err != nil {
 			log.Error(parent, err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -131,7 +131,7 @@ func GetOrders(s storage.Storage, log logger.Logger) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, err = w.Write(ordersJson)
+		_, err = w.Write(ordersJSON)
 		if err != nil {
 			log.Error(parent, err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -36,6 +36,7 @@ func GetBalance(s storage.Storage, log logger.Logger) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		_, err = w.Write(json)
 		if err != nil {
 			log.Error(parent, err.Error())

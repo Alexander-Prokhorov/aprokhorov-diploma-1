@@ -236,9 +236,10 @@ type Storage interface {
 	GetUser(ctx context.Context, login string) (User, error)
 	GetUsers(ctx context.Context) ([]*User, error)
 	AddOrder(ctx context.Context, login string, order string) error
-	ModifyOrder(ctx context.Context, login string, order string, status string, score int) error
+	ModifyOrder(ctx context.Context, order string, status string, score int) error
 	GetOrder(ctx context.Context, order string) (Order, error)
-	GetOrders(ctx context.Context, login string) ([]*Order, error)
+	GetOrdersByUser(ctx context.Context, login string) ([]*Order, error)
+	GetOrdersUndone(ctx context.Context) ([]*Order, error)
 	AddBalance(ctx context.Context, login string, score int, wd int) error
 	ModifyBalance(ctx context.Context, login string, score int, wd int) error
 	GetBalance(ctx context.Context, login string) (Balance, error)
