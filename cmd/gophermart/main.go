@@ -176,7 +176,7 @@ func main() {
 				}
 
 				for _, order := range orders {
-					orderAccrual, err := accrual.FetchData(order.OrderId)
+					orderAccrual, err := accrual.FetchData(order.OrderID)
 					if err != nil {
 						log.Info(parent, err.Error())
 					}

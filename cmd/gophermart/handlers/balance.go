@@ -112,8 +112,8 @@ func AddWithdraw(s storage.Storage, log logger.Logger) http.HandlerFunc {
 		}
 		log.Info(parent, fmt.Sprintf("%v", jsonWithdraw))
 
-		log.Debug(parent, fmt.Sprintf("Add withdraw: %f, order: %s, user: %s", jsonWithdraw.Withdraw, jsonWithdraw.OrderId, l))
-		err := s.AddWithdraw(r.Context(), l, jsonWithdraw.OrderId, jsonWithdraw.Withdraw)
+		log.Debug(parent, fmt.Sprintf("Add withdraw: %f, order: %s, user: %s", jsonWithdraw.Withdraw, jsonWithdraw.OrderID, l))
+		err := s.AddWithdraw(r.Context(), l, jsonWithdraw.OrderID, jsonWithdraw.Withdraw)
 		if err != nil {
 			log.Error(parent, err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -130,6 +130,14 @@ func AddWithdraw(s storage.Storage, log logger.Logger) http.HandlerFunc {
 		newBalance := balance.CurrentScore - jsonWithdraw.Withdraw
 		newWithdraw := balance.TotalWithdrawals + jsonWithdraw.Withdraw
 
+		// Check for Balance
+		if newBalance < 0 {
+			log.Info(parent, fmt.Sprintf("Not enought score to withdraw, Current Balance: %f, Expected Withdraw: %f", balance.CurrentScore, jsonWithdraw.Withdraw))
+			http.Error(w, err.Error(), http.StatusPaymentRequired)
+			return
+		}
+
+		// Update Balance
 		err = s.ModifyBalance(r.Context(), l, newBalance, newWithdraw)
 		if err != nil {
 			log.Info(parent, err.Error())

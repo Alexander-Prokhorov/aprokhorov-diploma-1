@@ -23,7 +23,7 @@ func (hm HMAC) GetHash(src string, key string) string {
 }
 
 func (hm HMAC) RandomKey() (string, error) {
-	var n int = 16
+	var n = 16
 	sb := strings.Builder{}
 	sb.Grow(n)
 	for i := 0; i < n; i++ {

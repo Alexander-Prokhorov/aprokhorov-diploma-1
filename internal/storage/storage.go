@@ -70,7 +70,7 @@ func (u *User) Parse(values []string) error {
 }
 
 type Order struct {
-	OrderId    string   `db:"order_id" json:"number"`
+	OrderID    string   `db:"order_id" json:"number"`
 	Login      string   `db:"login" json:"-"`
 	Status     string   `db:"status" json:"status"`
 	Score      float64  `db:"score" json:"accrual"`
@@ -100,7 +100,7 @@ func (o *Order) Parse(values []string) error {
 		// order_id, login, status, score, last_changed
 		switch i {
 		case 0:
-			o.OrderId = v
+			o.OrderID = v
 		case 1:
 			o.Login = v
 		case 2:
@@ -130,7 +130,7 @@ func (o *Order) Parse(values []string) error {
 }
 
 type Withdraw struct {
-	OrderId  string   `db:"order_id" json:"order"`
+	OrderID  string   `db:"order_id" json:"order"`
 	Login    string   `db:"login" json:"-"`
 	Withdraw float64  `db:"wd" json:"sum"`
 	Time     JSONTime `db:"time" json:"processed_at"`
@@ -158,7 +158,7 @@ func (w *Withdraw) Parse(values []string) error {
 		// order_id, login, status, score, last_changed
 		switch i {
 		case 0:
-			w.OrderId = v
+			w.OrderID = v
 		case 1:
 			w.Login = v
 		case 2:

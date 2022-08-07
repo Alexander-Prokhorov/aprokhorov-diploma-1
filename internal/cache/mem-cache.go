@@ -48,20 +48,19 @@ func (mc *MemCache) StoreToken(login string, token string) error {
 
 func (mc *MemCache) GetTokenUser(token string) (string, error) {
 	ad := AuthData{
-		Login:      "",
-		Token:      token,
-		LastActive: time.Now(),
+		Login: "",
+		Token: token,
 	}
 
 	adLocal, exist := mc.DB[ad.Token]
 	if !exist {
 		mc.log.Debug(parent, fmt.Sprintf("Verify() No User for Token: %s", ad.Token))
-		return ad.Login, errors.New("Please, Log in")
+		return ad.Login, errors.New("please, log in")
 	}
 
 	if time.Since(adLocal.LastActive) > mc.Lifetime {
 		mc.log.Debug(parent, fmt.Sprintf("Verify() Token Expired for User: %s", adLocal.Login))
-		return ad.Login, errors.New("Expired. Please, Login")
+		return ad.Login, errors.New("expired. please, log in")
 	}
 	if ad.Token == adLocal.Token {
 		mc.log.Debug(parent, fmt.Sprintf("Verify() Successfully find Token for User: %s", adLocal.Login))
