@@ -29,6 +29,8 @@ func GetBalance(s storage.Storage, log logger.Logger) http.HandlerFunc {
 			return
 		}
 
+		log.Debug(parent, fmt.Sprintf("Current Balance: %f, Withdrawals: %f", balance.CurrentScore, balance.TotalWithdrawals))
+
 		json, err := json.Marshal(balance)
 		if err != nil {
 			log.Error(parent, err.Error())
