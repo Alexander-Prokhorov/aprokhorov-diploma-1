@@ -128,13 +128,14 @@ func main() {
 				r.Post("/", handlers.NewOrder(database, verificator, log))
 				r.Get("/", handlers.GetOrders(database, log))
 			})
-		})
-		r.Route("/balance", func(r chi.Router) {
-			r.Use(handlers.CheckHeaders(log))              // Check content-type == app/json for post.request
-			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
-			r.Get("/", handlers.GetBalance(database, log))
-			//r.Post("/withdraw", handlers.AddWithdraw)
-			//r.Get("/withdrawals", handlers.GetWithdrawals)
+
+			r.Route("/balance", func(r chi.Router) {
+				r.Use(handlers.CheckHeaders(log))              // Check content-type == app/json for post.request
+				r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
+				r.Get("/", handlers.GetBalance(database, log))
+				//r.Post("/withdraw", handlers.AddWithdraw)
+				//r.Get("/withdrawals", handlers.GetWithdrawals)
+			})
 		})
 	})
 
