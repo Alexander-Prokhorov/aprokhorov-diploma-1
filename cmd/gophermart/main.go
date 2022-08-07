@@ -31,7 +31,7 @@ func main() {
 	flag.StringVar(&config.Server, "a", "127.0.0.1:8080", "Server ip:port")
 	flag.StringVar(&config.Database, "d", "", "Database ip:port")
 	flag.StringVar(&config.AccrualService, "r", "127.0.0.1:8081", "AccrualService ip:port")
-	flag.StringVar(&config.AccrualFrequency, "rf", "1s", "AccrualService Frequency, default:1s")
+	flag.StringVar(&config.AccrualFrequency, "rf", "50us", "AccrualService Frequency, default:1s")
 	flag.StringVar(&config.DBName, "dn", "", "Database Name")
 	flag.StringVar(&config.LogLevel, "l", "debug", "Log Level, default:debug")
 	flag.StringVar(&config.AuthCacheTimeout, "at", "300s", "Auth Cache Timeout, default:300s")
@@ -151,15 +151,19 @@ func main() {
 	log.Info("main", "Server Started")
 
 	// Accrual Service Operations
-	accrual := accrual.NewAccrualService(config.AccrualService, time.Second)
+	frequency, err := time.ParseDuration(config.AccrualFrequency)
+	if err != nil {
+		log.Error("main", err.Error())
+	}
+	accrual := accrual.NewAccrualService(config.AccrualService, frequency)
 
-	ticketAccrual := time.NewTicker(time.Second)
+	ticketAccrual := time.NewTicker(frequency)
 
 	go func(ctx context.Context, database storage.Storage) {
 		for {
 			select {
 			case <-ticketAccrual.C:
-				log.Debug("Accrual:CheckTask", "Update Orders from Accrual Service")
+				//log.Debug("Accrual:CheckTask", "Update Orders from Accrual Service")
 				orders, err := database.GetOrdersUndone(ctx)
 				if err != nil {
 					log.Error("Accrual:CheckTask", err.Error())
