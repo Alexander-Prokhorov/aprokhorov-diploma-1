@@ -184,7 +184,7 @@ func (w *Withdraw) Parse(values []string) error {
 type Balance struct {
 	Login            string  `db:"login" json:"-"`
 	CurrentScore     float64 `db:"cur_score" json:"current"`
-	TotalWithdrawals float64 `db:"total_wd" json:"withdraw"`
+	TotalWithdrawals float64 `db:"total_wd" json:"withdrawn"`
 }
 
 func (b *Balance) New() Parser { return &Balance{} }
