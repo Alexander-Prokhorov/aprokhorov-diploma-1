@@ -110,6 +110,7 @@ func AddWithdraw(s storage.Storage, log logger.Logger) http.HandlerFunc {
 		}
 		log.Info(parent, fmt.Sprintf("%v", jsonWithdraw))
 
+		log.Debug(parent, fmt.Sprintf("Add withdraw: %f, order: %s, user: %s", jsonWithdraw.Withdraw, jsonWithdraw.OrderId, l))
 		err := s.AddWithdraw(r.Context(), l, jsonWithdraw.OrderId, jsonWithdraw.Withdraw)
 		if err != nil {
 			log.Error(parent, err.Error())
@@ -123,13 +124,16 @@ func AddWithdraw(s storage.Storage, log logger.Logger) http.HandlerFunc {
 			log.Info(parent, err.Error())
 		}
 
+		log.Debug(parent, fmt.Sprintf("Current Balance: %f, Withdrawals: %f", balance.CurrentScore, balance.TotalWithdrawals))
 		newBalance := balance.CurrentScore - jsonWithdraw.Withdraw
 		newWithdraw := balance.TotalWithdrawals + jsonWithdraw.Withdraw
+
 		err = s.ModifyBalance(r.Context(), l, newBalance, newWithdraw)
 		if err != nil {
 			log.Info(parent, err.Error())
 		}
 		log.Info(parent, "Recalc Balance Successfully")
+		log.Debug(parent, fmt.Sprintf("New Balance: %f, Withdrawals: %f", newBalance, newWithdraw))
 
 		respond := []byte(`{"status": "success"}`)
 		_, err = w.Write(respond)
