@@ -135,7 +135,11 @@ func main() {
 			r.Get("/", handlers.GetBalance(database, log))
 			r.Post("/withdraw", handlers.AddWithdraw(database, log))
 		})
-		r.Get("/withdrawals", handlers.GetWithdrawals(database, log))
+		r.Route("/withdrawals", func(r chi.Router) {
+			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
+			r.Get("/", handlers.GetWithdrawals(database, log))
+		})
+
 	})
 
 	// Init Server
