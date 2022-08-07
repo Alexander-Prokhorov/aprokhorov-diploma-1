@@ -181,21 +181,23 @@ func main() {
 						log.Info(parent, err.Error())
 					}
 
-					log.Debug(parent, fmt.Sprint(orderAccrual))
-					err = database.ModifyOrder(ctx, orderAccrual.OrderID, orderAccrual.Status, orderAccrual.Accrual)
-					if err != nil {
-						log.Info(parent, err.Error())
-					}
+					if orderAccrual.OrderID != "" {
+						log.Debug(parent, fmt.Sprint(orderAccrual))
+						err = database.ModifyOrder(ctx, orderAccrual.OrderID, orderAccrual.Status, orderAccrual.Accrual)
+						if err != nil {
+							log.Info(parent, err.Error())
+						}
 
-					balance, err := database.GetBalance(ctx, order.Login)
-					if err != nil {
-						log.Info(parent, err.Error())
-					}
+						balance, err := database.GetBalance(ctx, order.Login)
+						if err != nil {
+							log.Info(parent, err.Error())
+						}
 
-					newBalance := balance.CurrentScore + orderAccrual.Accrual
-					err = database.ModifyBalance(ctx, order.Login, newBalance, balance.TotalWithdrawals)
-					if err != nil {
-						log.Info(parent, err.Error())
+						newBalance := balance.CurrentScore + orderAccrual.Accrual
+						err = database.ModifyBalance(ctx, order.Login, newBalance, balance.TotalWithdrawals)
+						if err != nil {
+							log.Info(parent, err.Error())
+						}
 					}
 				}
 			case <-ctx.Done():
