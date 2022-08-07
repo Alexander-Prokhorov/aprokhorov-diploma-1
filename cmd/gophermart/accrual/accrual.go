@@ -2,7 +2,6 @@ package accrual
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -48,7 +47,7 @@ func (a *AccrualService) FetchData(orderNo string) (Order, error) {
 	}
 
 	if respond.StatusCode() != http.StatusOK {
-		return Order{}, errors.New("respond status not success")
+		return Order{}, fmt.Errorf("respond status not success, status:%d body:%s", respond.StatusCode(), string(respond.Body()))
 	}
 
 	err = json.Unmarshal(respond.Body(), &order)
