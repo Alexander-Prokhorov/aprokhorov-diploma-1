@@ -130,10 +130,10 @@ func (o *Order) Parse(values []string) error {
 }
 
 type Withdraw struct {
-	OrderId  string   `db:"order_id"`
-	Login    string   `db:"login"`
-	Withdraw float64  `db:"wd"`
-	Time     JSONTime `db:"time"`
+	OrderId  string   `db:"order_id" json:"order"`
+	Login    string   `db:"login" json:"-"`
+	Withdraw float64  `db:"wd" json:"sum"`
+	Time     JSONTime `db:"time" json:"precessed_at"`
 }
 
 func (w *Withdraw) New() Parser { return &Withdraw{} }

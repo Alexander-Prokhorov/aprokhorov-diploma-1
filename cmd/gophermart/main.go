@@ -116,26 +116,25 @@ func main() {
 	r.Use(middleware.Logger)      // Access Log
 	r.Use(middleware.Compress(5)) // Support for gzip
 
-	r.Route("/api", func(r chi.Router) {
-		r.Route("/user", func(r chi.Router) {
-			r.Route("/", func(r chi.Router) {
-				r.Use(handlers.CheckHeaders(log)) // Check content-type == app/json for post.request
-				r.Post("/register", handlers.Authorize(true, database, authCache, mainHasher, log))
-				r.Post("/login", handlers.Authorize(false, database, authCache, mainHasher, log))
-			})
-			r.Route("/orders", func(r chi.Router) {
-				r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
-				r.Post("/", handlers.NewOrder(database, verificator, log))
-				r.Get("/", handlers.GetOrders(database, log))
-			})
+	r.Route("/api/user", func(r chi.Router) {
+		r.Route("/", func(r chi.Router) {
+			r.Use(handlers.CheckHeaders(log)) // Check content-type == app/json for post.request
+			r.Post("/register", handlers.Authorize(true, database, authCache, mainHasher, log))
+			r.Post("/login", handlers.Authorize(false, database, authCache, mainHasher, log))
+		})
 
-			r.Route("/balance", func(r chi.Router) {
-				r.Use(handlers.CheckHeaders(log))              // Check content-type == app/json for post.request
-				r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
-				r.Get("/", handlers.GetBalance(database, log))
-				//r.Post("/withdraw", handlers.AddWithdraw)
-				//r.Get("/withdrawals", handlers.GetWithdrawals)
-			})
+		r.Route("/orders", func(r chi.Router) {
+			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
+			r.Post("/", handlers.NewOrder(database, verificator, log))
+			r.Get("/", handlers.GetOrders(database, log))
+		})
+
+		r.Route("/balance", func(r chi.Router) {
+			r.Use(handlers.CheckHeaders(log))              // Check content-type == app/json for post.request
+			r.Use(handlers.AuthMiddleware(authCache, log)) // Check Authorization Token
+			r.Get("/", handlers.GetBalance(database, log))
+			r.Get("/withdrawals", handlers.GetWithdrawals(database, log))
+			r.Post("/withdraw", handlers.AddWithdraw(database, log))
 		})
 	})
 
@@ -161,36 +160,38 @@ func main() {
 	ticketAccrual := time.NewTicker(frequency)
 
 	go func(ctx context.Context, database storage.Storage) {
+		parent := "Accrual:CheckTask"
+
 		for {
 			select {
 			case <-ticketAccrual.C:
-				//log.Debug("Accrual:CheckTask", "Update Orders from Accrual Service")
+				//log.Debug(parent, "Update Orders from Accrual Service")
 				orders, err := database.GetOrdersUndone(ctx)
 				if err != nil {
-					log.Error("Accrual:CheckTask", err.Error())
+					log.Error(parent, err.Error())
 				}
 
 				for _, order := range orders {
 					orderAccrual, err := accrual.FetchData(order.OrderId)
 					if err != nil {
-						log.Info("Accrual:CheckTask", err.Error())
+						log.Info(parent, err.Error())
 					}
 
-					log.Debug("Accrual:CheckTask", fmt.Sprint(orderAccrual))
+					log.Debug(parent, fmt.Sprint(orderAccrual))
 					err = database.ModifyOrder(ctx, orderAccrual.OrderID, orderAccrual.Status, orderAccrual.Accrual)
 					if err != nil {
-						log.Info("Accrual:CheckTask", err.Error())
+						log.Info(parent, err.Error())
 					}
 
 					balance, err := database.GetBalance(ctx, order.Login)
 					if err != nil {
-						log.Info("Accrual:CheckTask", err.Error())
+						log.Info(parent, err.Error())
 					}
 
 					newBalance := balance.CurrentScore + orderAccrual.Accrual
 					err = database.ModifyBalance(ctx, order.Login, newBalance, balance.TotalWithdrawals)
 					if err != nil {
-						log.Info("Accrual:CheckTask", err.Error())
+						log.Info(parent, err.Error())
 					}
 				}
 			case <-ctx.Done():

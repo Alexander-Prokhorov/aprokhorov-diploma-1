@@ -25,7 +25,7 @@ func CheckHeaders(log logger.Logger) func(http.Handler) http.Handler {
 				}
 			}
 			w.Header().Set("Content-Type", "application/json")
-
+			log.Info(parent, "Check 'application/json' successfully, and set to")
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -64,7 +64,6 @@ func AuthMiddleware(ac cache.AuthCache, log logger.Logger) func(http.Handler) ht
 			// Update Cookie to Refresh "Expires"
 			//init the loc
 			loc, _ := time.LoadLocation("Europe/Moscow")
-			log.Debug(parent, loc.String())
 			//set timezone
 			expires := time.Now().In(loc).Add(ac.GetLifetime())
 			newCookie := http.Cookie{Name: "GOPHER_MARKET_AUTH", Value: reqToken.Value, Expires: expires}
