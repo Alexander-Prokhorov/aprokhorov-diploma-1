@@ -64,7 +64,3 @@ func (a *AccrualService) FetchData(orderNo string) (Order, error) {
 
 	return order, nil
 }
-
-func (a *AccrualService) RenewOrderData(orderNo string) error {
-	return nil
-}

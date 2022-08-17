@@ -14,12 +14,6 @@ import (
 	"aprokhorov-diploma-1/internal/verificator"
 )
 
-// 9278923470
-// 12345678903
-// 346436439
-// 4100401111100062
-// 371449635398431
-
 func NewOrder(s storage.Storage, v verificator.Verificator, log logger.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const parent string = "handlers:NewOrder"

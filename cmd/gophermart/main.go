@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"aprokhorov-diploma-1/cmd/gophermart/accrual"
+	"aprokhorov-diploma-1/cmd/gophermart/accrual/cron"
 	"aprokhorov-diploma-1/cmd/gophermart/config"
 	"aprokhorov-diploma-1/cmd/gophermart/handlers"
 	"aprokhorov-diploma-1/internal/cache"
@@ -159,52 +160,11 @@ func main() {
 	if err != nil {
 		log.Error("main", err.Error())
 	}
-	accrual := accrual.NewAccrualService(config.AccrualService, frequency)
+	accrualService := accrual.NewAccrualService(config.AccrualService, frequency)
 
 	ticketAccrual := time.NewTicker(frequency)
 
-	go func(ctx context.Context, database storage.Storage) {
-		parent := "Accrual:CheckTask"
-
-		for {
-			select {
-			case <-ticketAccrual.C:
-				//log.Debug(parent, "Update Orders from Accrual Service")
-				orders, err := database.GetOrdersUndone(ctx)
-				if err != nil {
-					log.Error(parent, err.Error())
-				}
-
-				for _, order := range orders {
-					orderAccrual, err := accrual.FetchData(order.OrderID)
-					if err != nil {
-						log.Info(parent, err.Error())
-					}
-
-					if orderAccrual.OrderID != "" {
-						log.Debug(parent, fmt.Sprint(orderAccrual))
-						err = database.ModifyOrder(ctx, orderAccrual.OrderID, orderAccrual.Status, orderAccrual.Accrual)
-						if err != nil {
-							log.Info(parent, err.Error())
-						}
-
-						balance, err := database.GetBalance(ctx, order.Login)
-						if err != nil {
-							log.Info(parent, err.Error())
-						}
-
-						newBalance := balance.CurrentScore + orderAccrual.Accrual
-						err = database.ModifyBalance(ctx, order.Login, newBalance, balance.TotalWithdrawals)
-						if err != nil {
-							log.Info(parent, err.Error())
-						}
-					}
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctx, database)
+	go cron.StartOrderCheckProcess(ctx, ticketAccrual.C, accrualService, database, log)
 
 	<-done
 	log.Info("main", "Shutdown")
